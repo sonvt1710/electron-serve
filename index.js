@@ -3,6 +3,25 @@ import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 import electron from 'electron';
 
+// Electron requires `registerSchemesAsPrivileged` to be called exactly once before app ready. We use `queueMicrotask` to batch all schemes from synchronous `serve()` calls into a single registration.
+const pendingSchemes = [];
+let schemesRegistered = false;
+
+const registerScheme = scheme => {
+	if (schemesRegistered) {
+		throw new Error('electron-serve: A new scheme cannot be registered after app is ready. Make sure to call serve() before app.whenReady().');
+	}
+
+	pendingSchemes.push(scheme);
+
+	if (pendingSchemes.length === 1) {
+		queueMicrotask(() => {
+			schemesRegistered = true;
+			electron.protocol.registerSchemesAsPrivileged(pendingSchemes);
+		});
+	}
+};
+
 const getPath = async (path_, file) => {
 	try {
 		const result = await fs.stat(path_);
@@ -66,20 +85,18 @@ export default function electronServe(options = {}) {
 		return response;
 	};
 
-	electron.protocol.registerSchemesAsPrivileged([
-		{
-			scheme: options.scheme,
-			privileges: {
-				standard: true,
-				secure: true,
-				allowServiceWorkers: true,
-				supportFetchAPI: true,
-				corsEnabled: options.isCorsEnabled,
-				stream: true,
-				codeCache: true,
-			},
+	registerScheme({
+		scheme: options.scheme,
+		privileges: {
+			standard: true,
+			secure: true,
+			allowServiceWorkers: true,
+			supportFetchAPI: true,
+			corsEnabled: options.isCorsEnabled,
+			stream: true,
+			codeCache: true,
 		},
-	]);
+	});
 
 	electron.app.on('ready', () => {
 		const session = options.partition

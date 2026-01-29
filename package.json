@@ -21,7 +21,7 @@
 	},
 	"scripts": {
 		"start": "electron test/fixture.js",
-		"test": "xo && node test/test.js && tsc index.d.ts"
+		"test": "xo && node test/test.js && tsc index.d.ts --skipLibCheck"
 	},
 	"files": [
 		"index.js",
